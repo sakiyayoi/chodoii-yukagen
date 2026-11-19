@@ -355,6 +355,46 @@
     background: rgba(255,255,255,.18); color: #fff; border: 2px solid rgba(255,255,255,.55);
     border-radius: 999px; font-size: 15px; font-weight: 700; padding: 13px 24px; cursor: pointer; font-family: inherit;
   }
+  /* ---------- v3.6: 特殊ENDバナー ---------- */
+  #endBanner {
+    display: none; align-items: center; gap: 8px;
+    font-size: 27px; font-weight: 900; letter-spacing: .02em;
+    padding: 10px 22px; border-radius: 16px; border: 4px solid currentColor;
+    transform: rotate(-3deg); position: relative; z-index: 2;
+  }
+  #endBanner.show { display: flex; animation: endSlam .5s cubic-bezier(.2,1.5,.4,1) forwards; }
+  @keyframes endSlam {
+    0% { opacity: 0; transform: scale(2.6) rotate(6deg); }
+    55% { opacity: 1; transform: scale(.92) rotate(-4deg); }
+    78% { transform: scale(1.07) rotate(-2deg); }
+    100% { opacity: 1; transform: scale(1) rotate(-3deg); }
+  }
+  #endBanner.boiled {
+    color: #ff5722; background: linear-gradient(135deg, rgba(255,87,34,.28), rgba(255,167,38,.28));
+    text-shadow: 0 0 16px rgba(255,110,40,.8), 0 2px 0 rgba(0,0,0,.35);
+    box-shadow: 0 0 28px rgba(255,110,40,.5), inset 0 0 18px rgba(255,150,50,.35);
+  }
+  #endBanner.frozen {
+    color: #81d4fa; background: linear-gradient(135deg, rgba(129,212,250,.25), rgba(207,250,254,.22));
+    text-shadow: 0 0 16px rgba(129,212,250,.85), 0 2px 0 rgba(0,0,0,.35);
+    box-shadow: 0 0 28px rgba(129,212,250,.5), inset 0 0 18px rgba(207,250,254,.35);
+  }
+  #endBanner .endEmoji { font-size: 32px; }
+  #resultDuck.frozenDuck {
+    background: linear-gradient(160deg, rgba(207,250,254,.5), rgba(129,212,250,.35));
+    border: 3px solid rgba(207,250,254,.85); border-radius: 20px; padding: 8px 12px;
+    box-shadow: 0 0 22px rgba(129,212,250,.55), inset 0 0 14px rgba(255,255,255,.5);
+    animation: duckShiver .12s linear 12;
+  }
+  @keyframes duckShiver {
+    0%,100% { transform: translateX(0); } 25% { transform: translateX(-2.5px); } 75% { transform: translateX(2.5px); }
+  }
+  /* ---------- v3.6: Xポストボタン ---------- */
+  .xBtn {
+    background: #000; color: #fff; border: 2px solid rgba(255,255,255,.55);
+    border-radius: 999px; font-size: 15px; font-weight: 800; padding: 13px 22px; cursor: pointer; font-family: inherit;
+  }
+  .xBtn:active { transform: translateY(2px); }
   /* ---------- v3.1: 結果画面の紙吹雪・星 ---------- */
   .confetti { position: absolute; top: -4%; pointer-events: none; animation: confettiFall var(--cd, 2.6s) cubic-bezier(.25,.5,.55,1) forwards; }
   @keyframes confettiFall {
@@ -500,6 +540,7 @@
     <div id="resultBg"></div>
     <div id="resultFlash"></div>
     <div id="resultDuck">🦆</div>
+    <div id="endBanner"><span class="endEmoji">🍗</span><span id="endText">ゆで鶏END</span></div>
     <div id="rankStamp" class="rS"><div id="rank">S</div></div>
     <div id="resultScore">スコア 0点</div>
     <div id="resultCombo"></div>
@@ -507,6 +548,7 @@
     <div id="resultComment"></div>
     <div class="rowBtns" id="resultBtns">
       <button id="retryBtn" class="bigBtn">もう一回</button>
+      <button id="xPostBtn" class="xBtn">𝕏 でポスト</button>
       <button id="toTitleBtn" class="subBtn">タイトルへ</button>
     </div>
   </section>
@@ -517,12 +559,13 @@
 
 <script>
 "use strict";
-/* ============ ちょうどいい湯かげん v3.5（公開版） ============
+/* ============ ちょうどいい湯かげん v3.6（公開版） ============
    🔥でわかす／🧊で冷ます。どちらも「遅れて効く」。
    湯は一定ペースで冷める。好みの変化と突風には予告がある。
    帯に入りつづけるとコンボが伸び、スコア倍率が上がる。60秒。
    v3.2: 突風は予兆→吹送中→効果ポップの3段階すべて見える。
-   v3.4: 予測表示は全撤去（ヒントなしが正解という本人判定）。温度計は現在温度・目標帯・トレンドのみ。 */
+   v3.4: 予測表示は全撤去（ヒントなしが正解という本人判定）。温度計は現在温度・目標帯・トレンドのみ。
+   v3.6: 特殊END（ゆで鶏END／冷凍END）と、結果のXポストボタンを追加。 */
 const TEMP_MIN = 32, TEMP_MAX = 49;      // ゲージ表示範囲
 const GAME_LEN = 60;                     // 秒
 const BAND_HALF = 1.5;                   // 好み帯の半幅(℃)
@@ -534,6 +577,12 @@ const CHANGE_LEAD = 2.5;                 // 好み変化の予告リード(秒)
 const GUST_LEAD = 2.0;                   // 突風の予兆リード(秒)
 const GUST_LEN = 2.4;                    // 突風の長さ(秒)
 const GUST_COOL = 1.15;                  // 突風中の追加の冷め(℃/s)
+/* v3.6: 特殊ENDの閾値。好み帯は中心38.5〜43.5℃・半幅1.5℃なので、帯の上限は最大45.0℃／下限は最小37.0℃。
+   END閾値は帯の外側に十分離して置き、通常プレイの行き過ぎでは届かず、狙って踏み込んだ時だけ届く形にする */
+const HOT_END_TEMP = 47.5;               // 終了時の温度がこれ以上 → ゆで鶏END（帯上限の最大値+2.5℃）
+const COLD_END_TEMP = 33.5;              // 終了時の温度がこれ以下 → 冷凍END（帯下限の最小値-3.5℃）
+const HOT_EXTREME = 47.0, COLD_EXTREME = 33.0; // 累積カウント用の極端温度
+const EXTREME_SEC = 6;                   // 極端温度に累積6秒 → END（終了時温度の条件が優先）
 /* コンボ倍率：連続秒数(コンボ) → 倍率。帯を出たら即リセット */
 const COMBO_TIERS = [[20, 5], [15, 4], [10, 3], [5, 2], [0, 1]];
 function multFor(combo) {
@@ -649,6 +698,7 @@ function newGame() {
     gustUntil: 0,
     gustActive: false,          // v3.2: 突風の本番中か
     gustCoolTotal: 0,           // v3.2: 今回の突風で風が奪った温度(℃)
+    hotExtreme: 0, coldExtreme: 0, // v3.6: 極端温度にいた累積秒（特殊END判定用）
     score: 0, streak: 0, bestStreak: 0,
     points: 0, shownPoints: -1,          // v3: 倍率つきスコア(点)
     comboTime: 0, combo: 0, maxCombo: 0, mult: 1, celebrated: 0,
@@ -981,6 +1031,10 @@ function step(dt) {
   renderQueue();
   S.temp = Math.max(30, Math.min(50, S.temp));
 
+  /* v3.6: 極端温度にいた時間の累積（特殊END判定用） */
+  if (S.temp >= HOT_EXTREME) S.hotExtreme += dt;
+  if (S.temp <= COLD_EXTREME) S.coldExtreme += dt;
+
   /* 温度の傾き（トレンド矢印用に平滑化） */
   const instRate = dt > 0 ? (S.temp - S.prevTemp) / dt : 0;
   S.rate += (instRate - S.rate) * Math.min(1, dt * 5);
@@ -1198,6 +1252,7 @@ function countUpScore(pts, seq) {
   })(t0);
 }
 
+let pendingXUrl = "";   // v3.6: finish() が組み立てるXポスト用インテントURL
 function finish() {
   S.playing = false;
   if (rafId) cancelAnimationFrame(rafId);
@@ -1210,6 +1265,15 @@ function finish() {
   else if (pts >= 70)  { rank = "B"; comment = "🦆「まあまあ温まったよ」コンボが伸びればもっと高得点。"; }
   else if (pts >= 35)  { rank = "C"; comment = "🦆「風邪ひくかと思った…」予告を読んで先回りを。"; }
   else                 { rank = "D"; comment = "🦆「ぶるぶる…」🔥も🧊も“遅れて効く”のを忘れずに。"; }
+
+  /* --- v3.6: 特殊END判定（終了時温度が優先、次に極端温度の累積） --- */
+  let ending = null;
+  if (S.temp >= HOT_END_TEMP) ending = "boiled";
+  else if (S.temp <= COLD_END_TEMP) ending = "frozen";
+  else if (S.hotExtreme >= EXTREME_SEC) ending = "boiled";
+  else if (S.coldExtreme >= EXTREME_SEC) ending = "frozen";
+  if (ending === "boiled") comment = "🍗「ぷかぷか浮いてたら…ゆで鶏になってた」熱くしすぎました。";
+  if (ending === "frozen") comment = "🧊「かちこちに固まった…」冷やしすぎました。";
 
   /* --- v3.1: 結果画面の演出シーケンス（約3秒で収束） --- */
   clearResultFx();
@@ -1245,7 +1309,30 @@ function finish() {
   commentEl.textContent = comment;
   commentEl.classList.remove("popIn");
   const duck = $("resultDuck");
-  duck.classList.remove("party", "nod");
+  duck.classList.remove("party", "nod", "frozenDuck");
+  duck.textContent = "🦆";
+  /* v3.6: 特殊ENDの表示リセット＋アヒルの姿 */
+  const endBanner = $("endBanner");
+  endBanner.className = "";
+  endBanner.classList.remove("show");
+  if (ending === "boiled") {
+    duck.textContent = "🍗";
+    endBanner.classList.add("boiled");
+    endBanner.querySelector(".endEmoji").textContent = "🍗";
+    $("endText").textContent = "ゆで鶏END";
+  } else if (ending === "frozen") {
+    duck.classList.add("frozenDuck");
+    endBanner.classList.add("frozen");
+    endBanner.querySelector(".endEmoji").textContent = "🧊";
+    $("endText").textContent = "冷凍END";
+  }
+  /* v3.6: Xポスト用インテントURL（結果を反映して組み立て） */
+  const GAME_URL = "https://sakiyayoi.github.io/chodoii-yukagen/";
+  let resultLine = "スコア" + pts + "点・ランク" + rank + "・最大" + S.maxCombo + "コンボ！";
+  if (ending === "boiled") resultLine = "🍗ゆで鶏END…！ " + resultLine;
+  if (ending === "frozen") resultLine = "🧊冷凍END…！ " + resultLine;
+  const postText = "『ちょうどいい湯かげん』\n" + resultLine + "\n" + GAME_URL + "\n#ちょうどいい湯かげん";
+  pendingXUrl = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(postText);
   const btns = $("resultBtns");
   btns.classList.add("locked");   // 演出が落ち着くまで誤タップで飛ばさない
   show("result");
@@ -1263,6 +1350,7 @@ function finish() {
   rLater(() => {
     if (seq !== resultSeq) return;
     stamp.classList.add("land");
+    if (ending) endBanner.classList.add("show");   // v3.6: 特殊ENDバナーが割り込む
     se.fanfareRank(rank);
     haloRings(rank);   // v3.5: 背景に光の輪が広がる
     rsEl.classList.remove("shake"); void rsEl.offsetWidth; rsEl.classList.add("shake");   // v3.5: 着地の小さな画面シェイク1回
@@ -1314,10 +1402,18 @@ function startGame() {
 $("startBtn").addEventListener("pointerdown", e => { e.preventDefault(); startGame(); });
 $("retryBtn").addEventListener("pointerdown", e => { e.preventDefault(); startGame(); });
 $("toTitleBtn").addEventListener("pointerdown", e => { e.preventDefault(); show("title"); });
+$("xPostBtn").addEventListener("click", () => { if (pendingXUrl) window.open(pendingXUrl, "_blank", "noopener"); });
 $("hotBtn").addEventListener("pointerdown", e => { e.preventDefault(); addCup("hot"); });
 $("coldBtn").addEventListener("pointerdown", e => { e.preventDefault(); addCup("cold"); });
 $("tub").addEventListener("pointerdown", e => { e.preventDefault(); addCup("hot"); });
 document.addEventListener("dblclick", e => e.preventDefault());
+
+/* テスト用フック（E2E検証でのみ使用。通常プレイには影響しない） */
+window.__yukagenTest = {
+  state: () => S,
+  setTemp: v => { if (S) S.temp = v; },
+  setTime: v => { if (S) S.t = v; }
+};
 </script>
 </body>
 </html>
