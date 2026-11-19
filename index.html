@@ -540,7 +540,7 @@
     <div id="resultBg"></div>
     <div id="resultFlash"></div>
     <div id="resultDuck">🦆</div>
-    <div id="endBanner"><span class="endEmoji">🍗</span><span id="endText">ゆで鶏END</span></div>
+    <div id="endBanner"><span class="endEmoji">🍗</span><span id="endText">ゆで鴨END</span></div>
     <div id="rankStamp" class="rS"><div id="rank">S</div></div>
     <div id="resultScore">スコア 0点</div>
     <div id="resultCombo"></div>
@@ -559,16 +559,18 @@
 
 <script>
 "use strict";
-/* ============ ちょうどいい湯かげん v3.6（公開版） ============
+/* ============ ちょうどいい湯かげん v3.7（公開版） ============
    🔥でわかす／🧊で冷ます。どちらも「遅れて効く」。
    湯は一定ペースで冷める。好みの変化と突風には予告がある。
    帯に入りつづけるとコンボが伸び、スコア倍率が上がる。60秒。
    v3.2: 突風は予兆→吹送中→効果ポップの3段階すべて見える。
    v3.4: 予測表示は全撤去（ヒントなしが正解という本人判定）。温度計は現在温度・目標帯・トレンドのみ。
-   v3.6: 特殊END（ゆで鶏END／冷凍END）と、結果のXポストボタンを追加。 */
+   v3.6: 特殊END（ゆで鴨END／冷凍END）と、結果のXポストボタンを追加。
+   v3.7: 成功判定範囲（好み帯の半幅）を1.5→1.8℃に少し拡大し、END閾値も帯端からの距離を保って連動。
+         あわせて「ゆで鶏END」は種目違い（鳥はカモ）のため「ゆで鴨END」に改名。 */
 const TEMP_MIN = 32, TEMP_MAX = 49;      // ゲージ表示範囲
 const GAME_LEN = 60;                     // 秒
-const BAND_HALF = 1.5;                   // 好み帯の半幅(℃)
+const BAND_HALF = 1.8;                   // 好み帯の半幅(℃) ※v3.7で1.5→1.8に少し拡大
 const CUP_HEAT = 3.4;                    // 1杯の総熱量(℃) ※冷ますも同量
 const CUP_DELAY = 1.0;                   // 効き始めるまでの遅れ(秒)
 const CUP_RAMP = 1.6;                    // 効ききるまでの時間(秒)
@@ -577,11 +579,12 @@ const CHANGE_LEAD = 2.5;                 // 好み変化の予告リード(秒)
 const GUST_LEAD = 2.0;                   // 突風の予兆リード(秒)
 const GUST_LEN = 2.4;                    // 突風の長さ(秒)
 const GUST_COOL = 1.15;                  // 突風中の追加の冷め(℃/s)
-/* v3.6: 特殊ENDの閾値。好み帯は中心38.5〜43.5℃・半幅1.5℃なので、帯の上限は最大45.0℃／下限は最小37.0℃。
+/* v3.6: 特殊ENDの閾値。v3.7で帯が半幅1.8℃になったのに合わせ、帯端からの距離を維持して連動。
+   好み帯は中心38.5〜43.5℃・半幅1.8℃なので、帯の上限は最大45.3℃／下限は最小36.7℃。
    END閾値は帯の外側に十分離して置き、通常プレイの行き過ぎでは届かず、狙って踏み込んだ時だけ届く形にする */
-const HOT_END_TEMP = 47.5;               // 終了時の温度がこれ以上 → ゆで鶏END（帯上限の最大値+2.5℃）
-const COLD_END_TEMP = 33.5;              // 終了時の温度がこれ以下 → 冷凍END（帯下限の最小値-3.5℃）
-const HOT_EXTREME = 47.0, COLD_EXTREME = 33.0; // 累積カウント用の極端温度
+const HOT_END_TEMP = 47.8;               // 終了時の温度がこれ以上 → ゆで鴨END（帯上限の最大値45.3+2.5℃）
+const COLD_END_TEMP = 33.2;              // 終了時の温度がこれ以下 → 冷凍END（帯下限の最小値36.7-3.5℃）
+const HOT_EXTREME = 47.3, COLD_EXTREME = 33.7; // 累積カウント用の極端温度（帯端の最大値+2.0℃／最小値-3.0℃）
 const EXTREME_SEC = 6;                   // 極端温度に累積6秒 → END（終了時温度の条件が優先）
 /* コンボ倍率：連続秒数(コンボ) → 倍率。帯を出たら即リセット */
 const COMBO_TIERS = [[20, 5], [15, 4], [10, 3], [5, 2], [0, 1]];
@@ -1272,7 +1275,7 @@ function finish() {
   else if (S.temp <= COLD_END_TEMP) ending = "frozen";
   else if (S.hotExtreme >= EXTREME_SEC) ending = "boiled";
   else if (S.coldExtreme >= EXTREME_SEC) ending = "frozen";
-  if (ending === "boiled") comment = "🍗「ぷかぷか浮いてたら…ゆで鶏になってた」熱くしすぎました。";
+  if (ending === "boiled") comment = "🍗「ぷかぷか浮いてたら…ゆで鴨になってた」熱くしすぎました。";
   if (ending === "frozen") comment = "🧊「かちこちに固まった…」冷やしすぎました。";
 
   /* --- v3.1: 結果画面の演出シーケンス（約3秒で収束） --- */
@@ -1319,7 +1322,7 @@ function finish() {
     duck.textContent = "🍗";
     endBanner.classList.add("boiled");
     endBanner.querySelector(".endEmoji").textContent = "🍗";
-    $("endText").textContent = "ゆで鶏END";
+    $("endText").textContent = "ゆで鴨END";
   } else if (ending === "frozen") {
     duck.classList.add("frozenDuck");
     endBanner.classList.add("frozen");
@@ -1329,7 +1332,7 @@ function finish() {
   /* v3.6: Xポスト用インテントURL（結果を反映して組み立て） */
   const GAME_URL = "https://sakiyayoi.github.io/chodoii-yukagen/";
   let resultLine = "スコア" + pts + "点・ランク" + rank + "・最大" + S.maxCombo + "コンボ！";
-  if (ending === "boiled") resultLine = "🍗ゆで鶏END…！ " + resultLine;
+  if (ending === "boiled") resultLine = "🍗ゆで鴨END…！ " + resultLine;
   if (ending === "frozen") resultLine = "🧊冷凍END…！ " + resultLine;
   const postText = "『ちょうどいい湯かげん』\n" + resultLine + "\n" + GAME_URL + "\n#ちょうどいい湯かげん";
   pendingXUrl = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(postText);
