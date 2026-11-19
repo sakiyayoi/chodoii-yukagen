@@ -641,7 +641,7 @@
     <div id="resultComment"></div>
     <div class="rowBtns" id="resultBtns">
       <button id="retryBtn" class="bigBtn">もう一回</button>
-      <button id="xPostBtn" class="xBtn">𝕏 でポスト</button>
+      <button id="xPostBtn" class="xBtn">𝕏 でポスト（画像つき）</button>
       <button id="toTitleBtn" class="subBtn">タイトルへ</button>
     </div>
   </section>
@@ -655,7 +655,7 @@
 
 <script>
 "use strict";
-/* ============ ちょうどいい湯かげん v3.8（公開版） ============
+/* ============ ちょうどいい湯かげん v3.9（公開版） ============
    🔥でわかす／🧊で冷ます。どちらも「遅れて効く」。
    湯は一定ペースで冷める。好みの変化と突風には予告がある。
    帯に入りつづけるとコンボが伸び、スコア倍率が上がる。60秒。
@@ -666,8 +666,10 @@
          あわせて「ゆで鶏END」は種目違い（鳥はカモ）のため「ゆで鴨END」に改名。
    v3.8: 帯半幅を1.65℃へ（初期1.5とv3.7の1.8の中間、本人の決定）。END閾値も連動。
          成功判定中（帯内）の演出を強化：泡・♪・画面端グロー・帯インの一撃・節目バースト拡大・スコアポップの倍率連動。
-         暑すぎ／寒すぎも段階演出化：湯気モクモク・赤い脈動・汗とへばり・温度計の点滅・蒸気音と警告音／
-         霜と結晶・青い縁・震えとくしゃみ・ガチガチ音と冷気音。はみ出し量で0〜3段階。 */
+         霜と結晶・青い縁・震えとくしゃみ・ガチガチ音と冷気音。はみ出し量で0〜3段階。
+   v3.9: 結果のポストを「画像つき」に作り替え。Xの投稿インテントは画像を添付できないため、
+         結果画像（1200×630）をCanvasで生成し、Web Share API（files対応環境＝スマホの共有シート経由）で
+         画像ごと渡す。非対応環境では「画像をダウンロード→従来インテントを開く」フォールバックにする。 */
 const TEMP_MIN = 32, TEMP_MAX = 49;      // ゲージ表示範囲
 const GAME_LEN = 60;                     // 秒
 const BAND_HALF = 1.65;                  // 好み帯の半幅(℃) ※v3.8で1.8→1.65（初期1.5とv3.7の中間、本人の決定）
@@ -1493,6 +1495,98 @@ function countUpScore(pts, seq) {
 }
 
 let pendingXUrl = "";   // v3.6: finish() が組み立てるXポスト用インテントURL
+
+/* ---------- v3.9: 結果画像（1200×630）の生成と、画像つき共有 ----------
+   Xの投稿インテント（twitter.com/intent/tweet）は仕様上画像を添付できない。
+   そのため共有ボタンは (1) Web Share API に files を渡せる環境では共有シート経由で
+   画像ごと渡し、(2) 使えない環境では「結果画像をダウンロード→従来インテントを開く」
+   フォールバックにする。どちらの経路でも結果画像は必ず生成する。 */
+let lastResult = null;       // finish() が保持する { pts, rank, maxCombo, ending, postText }
+let lastResultBlob = null;   // 生成済みの結果画像 Blob（共有ボタン用に先行生成）
+
+function drawResultImage(res) {
+  const W = 1200, H = 630;
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d");
+  const glow = RANK_GLOW[res.rank] || "#ffd60a";
+  const endColor = res.ending === "boiled" ? "#ff7043" : res.ending === "frozen" ? "#81d4fa" : null;
+  const accent = endColor || glow;
+  const FONT = '"Noto Sans CJK JP","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif';
+  /* 背景：湯船のような深い青＋ランク（またはEND）色の放射グロー */
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#1d3d61"); bg.addColorStop(1, "#0c1a2c");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  const rg = ctx.createRadialGradient(W / 2, 330, 60, W / 2, 330, 580);
+  rg.addColorStop(0, accent + "59"); rg.addColorStop(1, accent + "00");
+  ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = accent; ctx.lineWidth = 10;
+  ctx.strokeRect(15, 15, W - 30, H - 30);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  /* タイトル */
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 58px " + FONT;
+  ctx.fillText("ちょうどいい湯かげん", W / 2, 86);
+  /* END名（あれば大きく） */
+  if (res.ending) {
+    ctx.fillStyle = endColor;
+    ctx.font = "700 76px " + FONT;
+    ctx.fillText(res.ending === "boiled" ? "🍗 ゆで鴨END" : "🧊 冷凍END", W / 2, 176);
+  }
+  /* カモ（左）：ゆで鴨ENDでは🍗、冷凍ENDでは氷のブロックに閉じ込める */
+  if (res.ending === "frozen") {
+    ctx.fillStyle = "rgba(129,212,250,.30)";
+    ctx.fillRect(330 - 120, 368 - 120, 240, 240);
+    ctx.strokeStyle = "rgba(207,250,254,.95)"; ctx.lineWidth = 6;
+    ctx.strokeRect(330 - 120, 368 - 120, 240, 240);
+  }
+  ctx.font = "190px " + FONT;
+  ctx.fillText(res.ending === "boiled" ? "🍗" : "🦆", 330, 378);
+  /* ランク（右）：大きな文字をランク色で */
+  ctx.fillStyle = "#cfe3f5";
+  ctx.font = "700 42px " + FONT;
+  ctx.fillText("ランク", 800, 240);
+  ctx.font = "700 252px " + FONT;
+  ctx.lineWidth = 16; ctx.strokeStyle = "rgba(5,18,34,.9)";
+  ctx.strokeText(res.rank, 800, 382);
+  ctx.fillStyle = glow;
+  ctx.fillText(res.rank, 800, 382);
+  /* スコアと最大コンボ */
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 62px " + FONT;
+  ctx.fillText("スコア " + res.pts + "点", W / 2, 522);
+  ctx.fillStyle = "#ffe9a8";
+  ctx.font = "700 42px " + FONT;
+  ctx.fillText("最大 " + res.maxCombo + "コンボ", W / 2, 584);
+  return cv;
+}
+
+function cacheResultImage() {
+  lastResultBlob = null;
+  if (!lastResult) return;
+  drawResultImage(lastResult).toBlob(b => { lastResultBlob = b; }, "image/png");
+}
+
+async function shareResult() {
+  if (!lastResult) return;
+  const openIntent = () => { if (pendingXUrl) window.open(pendingXUrl, "_blank", "noopener"); };
+  let blob = lastResultBlob;
+  if (!blob) blob = await new Promise(r => drawResultImage(lastResult).toBlob(r, "image/png"));
+  if (!blob) { openIntent(); return; }
+  const file = new File([blob], "yukagen-result.png", { type: "image/png" });
+  const data = { files: [file], text: lastResult.postText };
+  if (navigator.canShare && navigator.canShare(data)) {
+    try { await navigator.share(data); return; }
+    catch (e) { if (e && e.name === "AbortError") return; /* ユーザーのキャンセル以外はフォールバックへ */ }
+  }
+  /* フォールバック：結果画像をダウンロードさせてから、従来のインテントを開く */
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "yukagen-result.png";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  openIntent();
+}
 function finish() {
   S.playing = false;
   if (rafId) cancelAnimationFrame(rafId);
@@ -1573,6 +1667,9 @@ function finish() {
   if (ending === "frozen") resultLine = "🧊冷凍END…！ " + resultLine;
   const postText = "『ちょうどいい湯かげん』\n" + resultLine + "\n" + GAME_URL + "\n#ちょうどいい湯かげん";
   pendingXUrl = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(postText);
+  /* v3.9: 結果を保持し、結果画像を先に生成しておく（共有時のジェスチャ鮮度を保つため） */
+  lastResult = { pts, rank, maxCombo: S.maxCombo, ending, postText };
+  cacheResultImage();
   const btns = $("resultBtns");
   btns.classList.add("locked");   // 演出が落ち着くまで誤タップで飛ばさない
   show("result");
@@ -1648,7 +1745,7 @@ function startGame() {
 $("startBtn").addEventListener("pointerdown", e => { e.preventDefault(); startGame(); });
 $("retryBtn").addEventListener("pointerdown", e => { e.preventDefault(); startGame(); });
 $("toTitleBtn").addEventListener("pointerdown", e => { e.preventDefault(); show("title"); });
-$("xPostBtn").addEventListener("click", () => { if (pendingXUrl) window.open(pendingXUrl, "_blank", "noopener"); });
+$("xPostBtn").addEventListener("click", () => { shareResult(); });
 $("hotBtn").addEventListener("pointerdown", e => { e.preventDefault(); addCup("hot"); });
 $("coldBtn").addEventListener("pointerdown", e => { e.preventDefault(); addCup("cold"); });
 $("tub").addEventListener("pointerdown", e => { e.preventDefault(); addCup("hot"); });
@@ -1658,7 +1755,11 @@ document.addEventListener("dblclick", e => e.preventDefault());
 window.__yukagenTest = {
   state: () => S,
   setTemp: v => { if (S) S.temp = v; },
-  setTime: v => { if (S) S.t = v; }
+  setTime: v => { if (S) S.t = v; },
+  /* v3.9: 結果画像と共有まわりの検証用 */
+  lastResult: () => lastResult,
+  shareImageDataURL: () => lastResult ? drawResultImage(lastResult).toDataURL("image/png") : "",
+  shareImageBlobSize: () => lastResultBlob ? lastResultBlob.size : 0
 };
 </script>
 </body>
