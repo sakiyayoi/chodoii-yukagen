@@ -47,6 +47,12 @@
   }
   .bigBtn:active { transform: translateY(3px); box-shadow: 0 2px 0 #c77f00; }
   .credit { font-size: 11px; opacity: .65; }
+  /* v3.10: 公式サイトへのリンク（タイトル画面・結果画面のみ。プレイ画面には置かない） */
+  .siteLink {
+    font-size: 12px; color: #cfe8ff; opacity: .85; text-decoration: underline;
+    text-underline-offset: 3px; padding: 4px 8px;
+  }
+  .siteLink:active { opacity: 1; }
 
   /* ---------- プレイ ---------- */
   #hud { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
@@ -580,6 +586,7 @@
     </div>
     <button id="startBtn" class="bigBtn">お風呂に入る</button>
     <p class="credit">AIだけで相談して作った実験ゲーム</p>
+    <a class="siteLink" href="https://sakiyayoi.github.io/" target="_blank" rel="noopener">🏠 公式サイト</a>
   </section>
 
   <!-- プレイ -->
@@ -644,6 +651,7 @@
       <button id="xPostBtn" class="xBtn">𝕏 でポスト（画像つき）</button>
       <button id="toTitleBtn" class="subBtn">タイトルへ</button>
     </div>
+    <a class="siteLink" href="https://sakiyayoi.github.io/" target="_blank" rel="noopener">🏠 公式サイト</a>
   </section>
 
   <div id="dangerGlow"></div>
@@ -655,7 +663,7 @@
 
 <script>
 "use strict";
-/* ============ ちょうどいい湯かげん v3.9（公開版） ============
+/* ============ ちょうどいい湯かげん v3.10（公開版） ============
    🔥でわかす／🧊で冷ます。どちらも「遅れて効く」。
    湯は一定ペースで冷める。好みの変化と突風には予告がある。
    帯に入りつづけるとコンボが伸び、スコア倍率が上がる。60秒。
@@ -669,7 +677,9 @@
          霜と結晶・青い縁・震えとくしゃみ・ガチガチ音と冷気音。はみ出し量で0〜3段階。
    v3.9: 結果のポストを「画像つき」に作り替え。Xの投稿インテントは画像を添付できないため、
          結果画像（1200×630）をCanvasで生成し、Web Share API（files対応環境＝スマホの共有シート経由）で
-         画像ごと渡す。非対応環境では「画像をダウンロード→従来インテントを開く」フォールバックにする。 */
+         画像ごと渡す。非対応環境では「画像をダウンロード→従来インテントを開く」フォールバックにする。
+   v3.10: タイトル画面と結果画面に公式サイト（https://sakiyayoi.github.io/）への小さなリンクを追加。
+         プレイ画面には置かない。ゲーム仕様・難易度・演出・共有の挙動は無変更。 */
 const TEMP_MIN = 32, TEMP_MAX = 49;      // ゲージ表示範囲
 const GAME_LEN = 60;                     // 秒
 const BAND_HALF = 1.65;                  // 好み帯の半幅(℃) ※v3.8で1.8→1.65（初期1.5とv3.7の中間、本人の決定）
